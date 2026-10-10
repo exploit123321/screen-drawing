@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+<title>ScreenDrawing settings</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; background: #1c1c20; color: #e9e9ee; font: 14px "Segoe UI", system-ui, sans-serif; }
+  h1 { margin: 0 0 18px; font-size: 18px; font-weight: 600; }
+  label.field { display: block; margin-bottom: 16px; }
+  label.field span { display: block; margin-bottom: 6px; color: #9a9aa6; font-size: 12px; }
+  input.key { width: 100%; padding: 9px 12px; border-radius: 8px; border: 1px solid #3a3a44; background: #26262c; color: #fff; font: inherit; cursor: pointer; }
+  input.key:focus { outline: 2px solid #7c6cff; border-color: transparent; }
+  .check { display: flex; align-items: center; gap: 8px; margin: 4px 0 18px; }
+  button { padding: 9px 18px; border: 0; border-radius: 8px; background: #7c6cff; color: #fff; font: inherit; cursor: pointer; }
+  button:hover { background: #8d7fff; }
+  #msg { margin-left: 12px; font-size: 13px; }
+  .note { margin-top: 22px; padding-top: 14px; border-top: 1px solid #33333b; color: #9a9aa6; font-size: 12px; line-height: 1.55; }
+</style>
+</head>
+<body>
+<h1>Settings</h1>
+<label class="field"><span>Draw on screen shortcut (click, then press keys)</span><input class="key" id="drawKey" readonly></label>
+<label class="field"><span>Capture region shortcut (click, then press keys)</span><input class="key" id="captureKey" readonly></label>
+<label class="field"><span>Click-through toggle while drawing (click, then press keys)</span><input class="key" id="clickThroughKey" readonly></label>
+<label class="check"><input type="checkbox" id="autoStart"> Start ScreenDrawing when I sign in to Windows</label>
+<button id="saveBtn">Save</button><span id="msg"></span>
+<div class="note">ScreenDrawing needs no special Windows permission. It only reads the screen when you start a capture, and
+only writes files you choose in the Save As dialog. Press Backspace in a field to clear it. Esc closes any overlay.</div>
+<script src="settings.js"></script>
+</body>
+</html>

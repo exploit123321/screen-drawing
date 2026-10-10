@@ -1,0 +1,44 @@
+{
+  "name": "screen-drawing",
+  "productName": "ScreenDrawing",
+  "version": "1.0.0",
+  "description": "Draw on your screen, capture any region, annotate it, then copy or save it.",
+  "main": "src/main.js",
+  "author": "ScreenDrawing contributors",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "icon": "node tools/make-icon.js",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win nsis"
+  },
+  "build": {
+    "appId": "com.screendrawing.app",
+    "productName": "ScreenDrawing",
+    "executableName": "ScreenDrawing",
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^44.7.0",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "koffi": "^3.3.2"
+  }
+}
