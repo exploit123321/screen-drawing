@@ -14,6 +14,8 @@ Good for: presentations, screen sharing, explaining something on a call, or quic
 - **Node.js** (free). This is only needed to run ScreenDrawing from this code or to build the installer.
 
 > If someone already gave you the `ScreenDrawing Setup 1.0.0.exe` installer, you do not need Node.js. Just double-click the installer and follow the steps.
+>
+> If you got the portable version, `ScreenDrawing Portable 1.0.0.exe`, there is nothing to install. Just double-click it (see [Portable version](#portable-version-no-install)).
 
 ---
 
@@ -142,13 +144,40 @@ If you only want the program files without an installer, type `npm run pack` ins
 
 ---
 
+## Portable version (no install)
+
+The portable version is a single `.exe` file. Nothing is installed. You can keep it on a USB stick or in any folder and run it on any Windows 10 or 11 PC, even one where you are not allowed to install programs.
+
+**Make it:**
+
+1. Do steps 1 to 4 from "Install and run it" above.
+2. In the terminal, type:
+
+   ```
+   npm run dist:portable
+   ```
+
+3. When it is done, open the `dist` folder. You will find **`ScreenDrawing Portable 1.0.0.exe`** (about 100 MB). Copy that one file wherever you like.
+
+**Use it:** double-click `ScreenDrawing Portable 1.0.0.exe`. After a few seconds the tray icon appears, and everything works exactly as described above.
+
+**How it differs from the installed version:**
+
+- Your settings are saved in a folder called **`ScreenDrawing Data`**, created next to the `.exe`. Copy that folder along with the `.exe` to take your settings with you. To start fresh, delete it.
+- If the `.exe` is somewhere ScreenDrawing cannot write (for example a read-only drive), settings are saved in `%APPDATA%\ScreenDrawing` instead.
+- Starting takes a few seconds longer, because the `.exe` unpacks itself into a temporary folder each time. That folder is removed again when you quit.
+- **Start ScreenDrawing when I sign in to Windows** starts this `.exe` from where it is now. If you move the `.exe`, start it once from its new place so Windows learns the new location. Untick the box before you delete the `.exe` or take it to another PC.
+- You may see the same "Windows protected your PC" warning as with the installer. Click **More info**, then **Run anyway**.
+
+---
+
 ## Good to know
 
 - A screenshot selection stays on one monitor. Multiple monitors and different screen scaling settings are supported.
 - ScreenDrawing does not need any special Windows permission. It only looks at the screen when you start a screenshot, and it only saves files where you tell it to.
 - If a shortcut is already used by another program, ScreenDrawing tells you and opens Settings so you can choose different keys.
 - Games running in "exclusive fullscreen" mode may hide the drawing. Switch the game to "borderless window" mode.
-- Your settings are stored in `%APPDATA%\ScreenDrawing\settings.json`.
+- Your settings are stored in `%APPDATA%\ScreenDrawing\settings.json` (portable version: in the `ScreenDrawing Data` folder next to the `.exe`).
 
 ---
 
@@ -158,7 +187,7 @@ ScreenDrawing is built with [Electron](https://www.electronjs.org/), which lets 
 
 | File or folder | What it does |
 | --- | --- |
-| `package.json` | The project's name, its commands (`npm start`, `npm run dist`, ...) and the installer settings. |
+| `package.json` | The project's name, its commands (`npm start`, `npm run dist`, ...) and the installer and portable build settings. |
 | `src/main.js` | The "brain" of the app: the tray icon and menu, the keyboard shortcuts, one see-through window per monitor, taking the screenshot, copying and saving. |
 | `src/overlay.html`, `src/overlay.css`, `src/overlay.js` | What you see on screen: the drawing surface, the toolbar, the tools, selecting an area and turning it into a picture. |
 | `src/settings.html`, `src/settings.js` | The Settings window (shortcuts and start with Windows). |
@@ -175,6 +204,7 @@ ScreenDrawing is built with [Electron](https://www.electronjs.org/), which lets 
 | `npm install` | Downloads everything the app needs (first time only). |
 | `npm start` | Runs ScreenDrawing from the code. |
 | `npm run dist` | Builds the Windows installer into `dist/`. |
+| `npm run dist:portable` | Builds the portable single-file `.exe` into `dist/`. |
 | `npm run pack` | Builds the program without an installer into `dist/win-unpacked/`. |
 | `npm run icon` | Re-creates the app icon. |
 

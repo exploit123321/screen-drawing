@@ -18,6 +18,19 @@ let clickThrough = false;
 let drawBeforeCapture = false;           // capture started from drawing mode: go back to the drawings afterwards
 let registered = [];
 
+// Portable build: the single .exe unpacks the app to a temporary folder on every start and passes the real .exe's
+// location. Settings then live in a folder next to the .exe so they travel with it. Must run before the instance lock.
+const PORTABLE_EXE = process.env.PORTABLE_EXECUTABLE_FILE;
+if (PORTABLE_EXE) {
+  const dataDir = path.join(path.dirname(PORTABLE_EXE), 'ScreenDrawing Data'), probe = path.join(dataDir, '.write-test');
+  try {
+    fs.mkdirSync(dataDir, { recursive: true });
+    fs.writeFileSync(probe, ''); fs.unlinkSync(probe);
+    app.setPath('userData', dataDir);
+    app.setPath('sessionData', path.join(app.getPath('temp'), 'ScreenDrawing'));   // Chromium caches: throwaway
+  } catch { /* read-only drive: keep the usual %APPDATA% folder */ }
+}
+
 if (!app.requestSingleInstanceLock()) app.quit();
 
 function loadSettings() {
@@ -26,6 +39,10 @@ function loadSettings() {
 function saveSettings() {
   fs.mkdirSync(path.dirname(settingsFile()), { recursive: true });
   fs.writeFileSync(settingsFile(), JSON.stringify(settings, null, 2));
+}
+// Windows must start the portable .exe itself, not the temporary copy it unpacks (that is deleted on quit).
+function applyAutoStart() {
+  app.setLoginItemSettings({ openAtLogin: settings.autoStart, ...(PORTABLE_EXE && { path: PORTABLE_EXE }) });
 }
 
 /* ---------- shortcuts ---------- */
@@ -319,7 +336,7 @@ ipcMain.handle('settings:set', (e, s) => {
   setDrawKeys(false);
   settings = { ...settings, drawKey: s.drawKey, captureKey: s.captureKey, clickThroughKey: s.clickThroughKey, autoStart: !!s.autoStart };
   saveSettings();
-  app.setLoginItemSettings({ openAtLogin: settings.autoStart });
+  applyAutoStart();
   const failed = registerShortcuts();
   if (drawing) setDrawKeys(true);
   else if (settings.clickThroughKey) {          // registered only while drawing; check now that it is free
@@ -354,6 +371,7 @@ app.on('will-quit', () => { wheel.stop(); globalShortcut.unregisterAll(); });
 
 app.whenReady().then(() => {
   loadSettings();
+  if (PORTABLE_EXE && settings.autoStart) applyAutoStart();   // the .exe may have been moved since
   buildTray();
   syncPool();
   ['display-added', 'display-removed', 'display-metrics-changed'].forEach((ev) => screen.on(ev, () => { closeOverlays(); syncPool(); }));
