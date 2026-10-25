@@ -13,7 +13,7 @@ Good for: presentations, screen sharing, explaining something on a call, or quic
 - A Windows 10 or Windows 11 computer.
 - **Node.js** (free). This is only needed to run ScreenDrawing from this code or to build the installer.
 
-> If someone already gave you the `ScreenDrawing Setup 1.0.0.exe` installer, you do not need Node.js. Just double-click the installer and follow the steps.
+> If someone already gave you the `ScreenDrawing Setup 1.0.0.exe` installer, you do not need Node.js. Just double-click the installer and follow the steps. A ready-made copy is in the [`installer`](installer) folder of this project (on GitHub, open it and click **Download raw file**).
 
 ---
 
