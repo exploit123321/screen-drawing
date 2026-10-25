@@ -1,5 +1,6 @@
 :root { --bg: rgba(26, 26, 31, .94); --fg: #e9e9ee; --muted: #9a9aa6; --accent: #7c6cff; --line: rgba(255,255,255,.1); }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }   /* #toolbar and #modebar set display, which would otherwise beat the hidden attribute */
 html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; user-select: none; font: 13px "Segoe UI", system-ui, sans-serif; color: var(--fg); }
 /* lowest non-zero alpha (1/255): keeps the window catching clicks without visibly darkening the screen */
 body[data-mode="draw"] { background: rgba(0, 0, 0, .004); }
@@ -8,6 +9,7 @@ canvas { position: fixed; left: 0; top: 0; }
 #ink { cursor: crosshair; }
 body[data-stage="select"] #ink { cursor: crosshair; }
 body.ct #ink { pointer-events: none; }
+body.finished canvas, body.finished #dims { visibility: hidden; }
 
 #toolbar { position: fixed; z-index: 10; width: 644px; padding: 8px; display: flex; flex-direction: column; gap: 6px;
   background: var(--bg); border: 1px solid var(--line); border-radius: 14px; backdrop-filter: blur(14px);

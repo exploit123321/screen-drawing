@@ -14,11 +14,17 @@ let sel = null, freePts = null, dragStart = null;
 let shapes = [], redo = [], cur = null, editing = null;
 let ct = false, lastOver = null, bgReady = false, bgWaiters = null;
 let drawSnap = null;                   // drawings to bring back after a capture started from drawing mode
+let finishTimer = 0;
+// Finished shapes are drawn once onto this offscreen canvas; render() then only adds the shape being drawn,
+// so drawing stays smooth however much is already on screen.
+const done = document.createElement('canvas'), dnx = done.getContext('2d');
+let doneN = 0;                         // shapes[0..doneN) are on `done`; set to -1 after anything but an append
 
 /* ---------- init ---------- */
 function resetState() {
   if (editing) { editing.ta.remove(); editing = null; }
-  bgReady = false; shapes = []; redo = []; cur = null; sel = null; freePts = null; dragStart = null; drawSnap = null;
+  clearTimeout(finishTimer); document.body.classList.remove('finished');
+  bgReady = false; shapes = []; redo = []; doneN = -1; cur = null; sel = null; freePts = null; dragStart = null; drawSnap = null;
   ct = false; lastOver = null; $('#through').classList.remove('active'); document.body.classList.remove('ct');
   toolbar.hidden = true; modebar.hidden = true; dimsEl.hidden = true; $('#toast').hidden = true; $('#sizering').hidden = true;
   for (const c of [bg, shade, ink]) c.getContext('2d').clearRect(0, 0, c.width, c.height);
@@ -29,11 +35,12 @@ api.onReset(resetState);
 api.onInit(async (d) => {
   resetState();
   cfg = d; dpr = d.display.scaleFactor; W = d.display.bounds.width; H = d.display.bounds.height;
-  for (const c of [bg, shade, ink]) {
+  for (const c of [bg, shade, ink, done]) {
     if (c.width !== Math.round(W * dpr)) c.width = Math.round(W * dpr);
     if (c.height !== Math.round(H * dpr)) c.height = Math.round(H * dpr);
-    c.style.width = W + 'px'; c.style.height = H + 'px';
+    if (c !== done) { c.style.width = W + 'px'; c.style.height = H + 'px'; }
   }
+  doneN = -1;
   tool = d.tool; syncToolUI();
   if (d.ctKey) $('#through').dataset.tip = `Click-through: use windows underneath (${d.ctKey})`;
   document.body.dataset.mode = d.mode;
@@ -47,6 +54,7 @@ api.onInit(async (d) => {
 });
 // Switch an open drawing overlay (shapes kept) into capture mode, remembering the drawings for afterwards.
 api.onCaptureMode((d) => {
+  clearTimeout(finishTimer); document.body.classList.remove('finished'); $('#toast').hidden = true;
   commitText();
   if (document.body.dataset.mode === 'draw') {
     drawSnap = { shapes: shapes.slice(), redo: redo.slice(), bar: toolbar.hidden ? null : { x: toolbar.offsetLeft, y: toolbar.offsetTop } };
@@ -57,7 +65,7 @@ api.onCaptureMode((d) => {
 api.onDrawMode(() => {
   if (editing) { editing.ta.remove(); editing = null; }
   const s = drawSnap || { shapes: [], redo: [], bar: null }; drawSnap = null;
-  shapes = s.shapes; redo = s.redo; cur = null; sel = null; freePts = null; dragStart = null;
+  shapes = s.shapes; redo = s.redo; doneN = -1; cur = null; sel = null; freePts = null; dragStart = null;
   bgReady = false; bg.getContext('2d').clearRect(0, 0, bg.width, bg.height);
   document.body.dataset.mode = 'draw'; setStage('draw');
   modebar.hidden = true; dimsEl.hidden = true;
@@ -69,11 +77,18 @@ api.onClickThrough((on) => {
   $('#through').classList.toggle('active', on); document.body.classList.toggle('ct', on);
 });
 api.onBg((s) => {
-  const u = new Uint32Array(s.data.buffer, s.data.byteOffset, s.data.byteLength >> 2);
-  for (let i = 0; i < u.length; i++) { const v = u[i]; u[i] = (v & 0xff00ff00) | ((v & 0xff) << 16) | ((v >> 16) & 0xff); }  // BGRA -> RGBA
-  const tmp = document.createElement('canvas'); tmp.width = s.w; tmp.height = s.h;
-  tmp.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(s.data.buffer, s.data.byteOffset, s.data.byteLength), s.w, s.h), 0, 0);
-  const bx = bg.getContext('2d'); bx.clearRect(0, 0, bg.width, bg.height); bx.drawImage(tmp, 0, 0, bg.width, bg.height);
+  const bx = bg.getContext('2d'); bx.clearRect(0, 0, bg.width, bg.height);
+  try {
+    // The screen grab is BGRA; VideoFrame takes it as is, without a slow per-pixel swap in JavaScript.
+    const f = new VideoFrame(s.data, { format: 'BGRA', codedWidth: s.w, codedHeight: s.h, timestamp: 0 });
+    bx.drawImage(f, 0, 0, bg.width, bg.height); f.close();
+  } catch {
+    const u = new Uint32Array(s.data.buffer, s.data.byteOffset, s.data.byteLength >> 2);
+    for (let i = 0; i < u.length; i++) { const v = u[i]; u[i] = (v & 0xff00ff00) | ((v & 0xff) << 16) | ((v >> 16) & 0xff); }  // BGRA -> RGBA
+    const img = new ImageData(new Uint8ClampedArray(s.data.buffer, s.data.byteOffset, s.data.byteLength), s.w, s.h);
+    if (s.w === bg.width && s.h === bg.height) bx.putImageData(img, 0, 0);
+    else { const tmp = document.createElement('canvas'); tmp.width = s.w; tmp.height = s.h; tmp.getContext('2d').putImageData(img, 0, 0); bx.drawImage(tmp, 0, 0, bg.width, bg.height); }
+  }
   bgReady = true; if (bgWaiters) { bgWaiters(); bgWaiters = null; }
 });
 function startCapture(kind) {
@@ -144,7 +159,7 @@ function placeToolbar(x, y) {
 
 /* ---------- history ---------- */
 const activeShapes = () => { let s = 0; shapes.forEach((x, i) => { if (x.type === 'clear') s = i + 1; }); return shapes.slice(s); };
-function undo() { commitText(); if (shapes.length) { redo.push(shapes.pop()); render(); } }
+function undo() { commitText(); if (shapes.length) { redo.push(shapes.pop()); doneN = -1; render(); } }
 function redoFn() { commitText(); if (redo.length) { shapes.push(redo.pop()); render(); } }
 function clearAll() { commitText(); if (activeShapes().length) { shapes.push({ type: 'clear' }); redo = []; render(); } }
 
@@ -181,14 +196,29 @@ function strokePath(c, p) {
   for (let i = 1; i < p.length - 1; i++) c.quadraticCurveTo(p[i].x, p[i].y, (p[i].x + p[i + 1].x) / 2, (p[i].y + p[i + 1].y) / 2);
   c.lineTo(p[p.length - 1].x, p[p.length - 1].y); c.stroke();
 }
+// Brings `done` up to date: draws only the shapes added since last time, or everything after an undo or reset.
+function syncDone() {
+  if (doneN === shapes.length) return;
+  let from = doneN;
+  if (from < 0 || from > shapes.length) {
+    from = 0; shapes.forEach((s, i) => { if (s.type === 'clear') from = i; });
+    dnx.setTransform(1, 0, 0, 1, 0, 0); dnx.clearRect(0, 0, done.width, done.height);
+  }
+  dnx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  for (let i = from; i < shapes.length; i++) {
+    if (shapes[i].type === 'clear') { dnx.setTransform(1, 0, 0, 1, 0, 0); dnx.clearRect(0, 0, done.width, done.height); dnx.setTransform(dpr, 0, 0, dpr, 0, 0); }
+    else drawShape(dnx, shapes[i]);
+  }
+  doneN = shapes.length;
+}
 function render() {
+  syncDone();
   inx.setTransform(1, 0, 0, 1, 0, 0); inx.clearRect(0, 0, ink.width, ink.height);
-  inx.setTransform(dpr, 0, 0, dpr, 0, 0);
   inx.save();
-  if (stage !== 'draw' && sel && sel.w > 0) { selPath(inx); inx.clip(); }
-  const all = cur ? [...shapes, cur] : shapes;
-  let start = 0; all.forEach((s, i) => { if (s.type === 'clear') start = i + 1; });
-  for (let i = start; i < all.length; i++) drawShape(inx, all[i]);
+  if (stage !== 'draw' && sel && sel.w > 0) { inx.setTransform(dpr, 0, 0, dpr, 0, 0); selPath(inx); inx.clip(); inx.setTransform(1, 0, 0, 1, 0, 0); }
+  inx.drawImage(done, 0, 0);
+  inx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (cur) drawShape(inx, cur);              // drawn on top, so an eraser stroke already rubs out the finished shapes
   inx.restore();
   $('#undo').disabled = !shapes.length; $('#redo').disabled = !redo.length;
 }
@@ -216,7 +246,7 @@ ink.addEventListener('pointerdown', (e) => {
 ink.addEventListener('pointermove', (e) => {
   const p = pt(e);
   if (stage === 'select' && dragStart) {
-    if (selKind === 'free') { freePts.push(p); sel = bbox(freePts); }
+    if (selKind === 'free') { freePts.push(p); sel = growBox(sel, p); }
     else sel = { x: Math.min(dragStart.x, p.x), y: Math.min(dragStart.y, p.y), w: Math.abs(p.x - dragStart.x), h: Math.abs(p.y - dragStart.y) };
     drawShade(); return;
   }
@@ -233,10 +263,9 @@ ink.addEventListener('pointerup', () => {
   if (!cur) return;
   shapes.push(cur); cur = null; redo = []; render();
 });
-function bbox(pts) {
-  const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
-  const x = Math.min(...xs), y = Math.min(...ys);
-  return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+function growBox(b, p) {               // bounding box of the freehand points so far, one point at a time
+  const x = Math.min(b.x, p.x), y = Math.min(b.y, p.y);
+  return { x, y, w: Math.max(b.x + b.w, p.x) - x, h: Math.max(b.y + b.h, p.y) - y };
 }
 
 /* ---------- text ---------- */
@@ -345,9 +374,12 @@ async function doSave() {
 }
 function finish(msg) {
   const t = $('#toast'); t.textContent = msg; t.hidden = false; toolbar.hidden = true;
+  clearTimeout(finishTimer);
   // Started from drawing mode: go straight back to the drawings and let the message linger there.
-  if (drawSnap) { api.close(); setTimeout(() => { t.hidden = true; }, 1200); }
-  else setTimeout(() => api.close(), 1000);
+  if (drawSnap) { api.close(); finishTimer = setTimeout(() => { t.hidden = true; }, 1200); return; }
+  // Otherwise the screen is given back at once (frozen frame gone, clicks pass through) while the message shows.
+  document.body.classList.add('finished'); api.ignore(true);
+  finishTimer = setTimeout(() => api.close(), 900);
 }
 
 /* ---------- keyboard ---------- */
