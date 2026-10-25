@@ -18,7 +18,10 @@ let clickThrough = false;
 let drawBeforeCapture = false;           // capture started from drawing mode: go back to the drawings afterwards
 let registered = [];
 
-if (!app.requestSingleInstanceLock()) app.quit();
+// A second launch only wakes the running copy (second-instance) and must not build its own tray, windows and shortcuts.
+const primary = app.requestSingleInstanceLock();
+if (!primary) app.quit();
+Menu.setApplicationMenu(null);           // no window here uses a menu; skips building the default one at startup
 
 function loadSettings() {
   try { settings = { ...DEFAULTS, ...JSON.parse(fs.readFileSync(settingsFile(), 'utf8')) }; } catch { settings = { ...DEFAULTS }; }
@@ -352,12 +355,26 @@ app.on('second-instance', openSettings);
 app.on('window-all-closed', () => { /* stay alive in the tray */ });
 app.on('will-quit', () => { wheel.stop(); globalShortcut.unregisterAll(); });
 
-app.whenReady().then(() => {
+// The first desktopCapturer call also starts up the capture backend and takes far longer than later ones.
+// Do it once in the background after startup so the first real screenshot is as quick as the rest.
+function warmUpCapture() {
+  if (busy) return;
+  desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 16, height: 16 } }).catch(() => {});
+}
+
+if (primary) app.whenReady().then(() => {
   loadSettings();
+  const failed = registerShortcuts();     // first, so the shortcuts work while the overlays are still loading
   buildTray();
   syncPool();
-  ['display-added', 'display-removed', 'display-metrics-changed'].forEach((ev) => screen.on(ev, () => { closeOverlays(); syncPool(); }));
-  const failed = registerShortcuts();
+  const displaysChanged = () => { closeOverlays(); syncPool(); };
+  screen.on('display-added', displaysChanged);
+  screen.on('display-removed', displaysChanged);
+  // Also fires for work area changes (taskbar moved or auto-hidden): only a new size or scaling needs new overlays.
+  screen.on('display-metrics-changed', (e, d, changed) => {
+    if (changed.includes('bounds') || changed.includes('scaleFactor')) displaysChanged();
+  });
+  setTimeout(warmUpCapture, 4000);
   if (process.env.SCREENDRAWING_SELFTEST) setTimeout(() => { toggleDraw(); setTimeout(closeOverlays, 1500); setTimeout(() => startCapture('region'), 2200); setTimeout(() => app.quit(), 5000); }, 3000);
   if (failed.length) {
     dialog.showMessageBox({ type: 'warning', message: 'Some shortcuts could not be registered',
